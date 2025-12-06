@@ -5,6 +5,9 @@ import { PoopShape, Mood, PoopLog } from './types';
 import { MOOD_DATA, POOP_SHAPES_DATA } from './constants';
 import { Trash2, Heart } from 'lucide-react';
 
+// 🔴🔴🔴 请将此处替换为你部署的 Google Apps Script Web App URL 🔴🔴🔴
+const GOOGLE_SCRIPT_URL = "YOUR_GOOGLE_SCRIPT_URL_HERE";
+
 const App: React.FC = () => {
   const [logs, setLogs] = useState<PoopLog[]>([]);
   const [currentShape, setCurrentShape] = useState<PoopShape>(PoopShape.SWIRL);
@@ -30,12 +33,11 @@ const App: React.FC = () => {
     localStorage.setItem('pink_poop_logs', JSON.stringify(logs));
   }, [logs]);
 
-  const handleLog = async () => {
+  const handleSubmit = async () => {
     setIsLoading(true);
     
-    // Simulate saving delay for aesthetics
-    await new Promise(r => setTimeout(r, 600));
-
+    // 1. 构建本地保存对象 (Local UI State)
+    // We still generate a local timestamp for immediate UI feedback/offline capability
     const newLog: PoopLog = {
       id: Date.now().toString(),
       timestamp: Date.now(),
@@ -44,16 +46,66 @@ const App: React.FC = () => {
       note,
     };
 
-    setLogs([newLog, ...logs]);
-    setNote('');
-    setCurrentShape(PoopShape.SWIRL);
-    setIsLoading(false);
-    
-    setView('HISTORY');
+    // 2. 构建发送给 Google Sheets 的 payload
+    // STRICT SCHEMA: { poop_shape, mood, memo }
+    // Date is intentionally OMITTED here as it is generated on the server (Apps Script).
+    const googleSheetPayload = {
+      poop_shape: POOP_SHAPES_DATA[currentShape].label, // e.g. "爱心噗噗"
+      mood: MOOD_DATA[currentMood],                     // e.g. "感觉超棒"
+      memo: note                                        // e.g. "User input text"
+    };
+
+    try {
+      // 检查是否配置了有效的 URL
+      const hasConfiguredUrl = GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "YOUR_GOOGLE_SCRIPT_URL_HERE";
+
+      if (hasConfiguredUrl) {
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          // mode: 'no-cors' 是关键，用于解决浏览器直接调用 GAS 的跨域问题
+          mode: 'no-cors', 
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(googleSheetPayload)
+        });
+      } else {
+        // 未配置 URL 时的模拟延迟
+        console.warn("⚠️ 未配置 Google Script URL，仅保存到本地。请在 App.tsx 中配置 GOOGLE_SCRIPT_URL。");
+        console.log("Mock Payload:", googleSheetPayload);
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
+      // 3. 本地保存 (无论云端是否成功，本地都保存一份作为备份)
+      setLogs([newLog, ...logs]);
+      
+      // 4. 交互反馈
+      alert(hasConfiguredUrl ? "✨ 记录成功！便便已同步到云端！ ✨" : "✨ 记录成功！(仅本地保存) ✨");
+      
+      // 5. 重置表单
+      setNote('');
+      setCurrentShape(PoopShape.SWIRL);
+      setCurrentMood(Mood.HAPPY);
+      
+      // 6. 切换视图
+      setView('HISTORY');
+
+    } catch (error) {
+      console.error("Save failed", error);
+      alert("⚠️ 保存到云端失败，但已为您保存到本地记录。");
+      
+      // 即使云端失败，本地也进行保存
+      setLogs([newLog, ...logs]);
+      setNote('');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDelete = (id: string) => {
-    setLogs(logs.filter(l => l.id !== id));
+    if (window.confirm("确定要删除这条可爱的记录吗？")) {
+      setLogs(logs.filter(l => l.id !== id));
+    }
   };
 
   return (
@@ -137,8 +189,8 @@ const App: React.FC = () => {
               {/* Action Button */}
               <div className="pt-2">
                 <Button 
-                  label={isLoading ? "💾 保存中..." : "✨ 记录便便 ✨"} 
-                  onClick={handleLog}
+                  label={isLoading ? "📡 记录中..." : "✨ 记录便便 ✨"} 
+                  onClick={handleSubmit}
                   disabled={isLoading}
                   className="w-full text-lg py-3"
                 />

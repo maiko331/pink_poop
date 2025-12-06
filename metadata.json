@@ -1,4 +1,5 @@
 {
-  "name": "Pink Poop Diary",
-  "description": "A Y2K Millennium-style diary for tracking pink poops with mystical AI fortune telling."
+  "name": "Pink Poop",
+  "description": "A cute, privacy-focused digestive health tracker with AI insights.",
+  "requestFramePermissions": []
 }
