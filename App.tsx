@@ -4,9 +4,8 @@ import { Button } from './components/Button';
 import { PoopShape, Mood, PoopLog } from './types';
 import { MOOD_DATA, POOP_SHAPES_DATA } from './constants';
 import { Trash2, Heart } from 'lucide-react';
-
-// 🔴🔴🔴 请将此处替换为你部署的 Google Apps Script Web App URL 🔴🔴🔴
-const GOOGLE_SCRIPT_URL = "YOUR_GOOGLE_SCRIPT_URL_HERE";
+// ✨ 引入刚才创建的 API 函数
+import { submitGuestbookEntry } from './api/guestbook';
 
 const App: React.FC = () => {
   const [logs, setLogs] = useState<PoopLog[]>([]);
@@ -37,7 +36,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     
     // 1. 构建本地保存对象 (Local UI State)
-    // We still generate a local timestamp for immediate UI feedback/offline capability
+    // 用于立刻更新 UI 和本地备份
     const newLog: PoopLog = {
       id: Date.now().toString(),
       timestamp: Date.now(),
@@ -46,58 +45,33 @@ const App: React.FC = () => {
       note,
     };
 
-    // 2. 构建发送给 Google Sheets 的 payload
-    // STRICT SCHEMA: { poop_shape, mood, memo }
-    // Date is intentionally OMITTED here as it is generated on the server (Apps Script).
-    const googleSheetPayload = {
-      poop_shape: POOP_SHAPES_DATA[currentShape].label, // e.g. "爱心噗噗"
-      mood: MOOD_DATA[currentMood],                     // e.g. "感觉超棒"
-      memo: note                                        // e.g. "User input text"
-    };
-
     try {
-      // 检查是否配置了有效的 URL
-      const hasConfiguredUrl = GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "YOUR_GOOGLE_SCRIPT_URL_HERE";
+      // 2. 调用 API 发送到 Google Sheets
+      // (具体的 URL 和 fetch 逻辑都在 api/guestbook.js 里)
+      await submitGuestbookEntry({
+        poop_shape: POOP_SHAPES_DATA[currentShape].label,
+        mood: MOOD_DATA[currentMood],
+        memo: note
+      });
 
-      if (hasConfiguredUrl) {
-        await fetch(GOOGLE_SCRIPT_URL, {
-          method: 'POST',
-          // mode: 'no-cors' 是关键，用于解决浏览器直接调用 GAS 的跨域问题
-          mode: 'no-cors', 
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(googleSheetPayload)
-        });
-      } else {
-        // 未配置 URL 时的模拟延迟
-        console.warn("⚠️ 未配置 Google Script URL，仅保存到本地。请在 App.tsx 中配置 GOOGLE_SCRIPT_URL。");
-        console.log("Mock Payload:", googleSheetPayload);
-        await new Promise(r => setTimeout(r, 1000));
-      }
+      // 3. 成功反馈
+      alert("✨ 记录成功！便便已同步到云端！ ✨");
 
-      // 3. 本地保存 (无论云端是否成功，本地都保存一份作为备份)
+    } catch (error) {
+      console.error("Cloud save failed", error);
+      // 4. 失败反馈 (但告诉用户本地已保存)
+      alert("⚠️ 保存到云端失败，但已为您保存到本地记录。");
+    } finally {
+      // 5. 无论云端是否成功，都在本地保存记录 (Offline First)
       setLogs([newLog, ...logs]);
       
-      // 4. 交互反馈
-      alert(hasConfiguredUrl ? "✨ 记录成功！便便已同步到云端！ ✨" : "✨ 记录成功！(仅本地保存) ✨");
-      
-      // 5. 重置表单
+      // 6. 重置表单
       setNote('');
       setCurrentShape(PoopShape.SWIRL);
       setCurrentMood(Mood.HAPPY);
       
-      // 6. 切换视图
+      // 7. 切换视图并结束加载
       setView('HISTORY');
-
-    } catch (error) {
-      console.error("Save failed", error);
-      alert("⚠️ 保存到云端失败，但已为您保存到本地记录。");
-      
-      // 即使云端失败，本地也进行保存
-      setLogs([newLog, ...logs]);
-      setNote('');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -202,8 +176,8 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-y-auto scrollbar-hide space-y-4 pr-1">
               {logs.length === 0 ? (
                 <div className="text-center text-gray-400 py-10 font-mono">
-                  <p>还没有记录哦~</p>
-                  <p>(｡•́︿•̀｡)</p>
+                  <p>还没有记录哦~</p >
+                  <p>(｡•́︿•̀｡)</p >
                 </div>
               ) : (
                 logs.map((log) => (
@@ -232,9 +206,9 @@ const App: React.FC = () => {
 
                     {/* Keep display of old AI fortunes if they exist in local storage */}
                     {log.aiFortune && (
-                       <div className="mt-2 p-2 bg-purple-50 rounded text-xs text-purple-800 font-mono border border-purple-100">
-                         {log.aiFortune}
-                       </div>
+                        <div className="mt-2 p-2 bg-purple-50 rounded text-xs text-purple-800 font-mono border border-purple-100">
+                          {log.aiFortune}
+                        </div>
                     )}
                   </div>
                 ))
