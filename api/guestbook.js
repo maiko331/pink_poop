@@ -1,8 +1,7 @@
 // src/api/guestbook.js
 
-// 🔴 重要：这里一定要填你刚刚在 Google Sheets 部署拿到的那个 Web App URL
-// 格式通常是 https://script.google.com/macros/s/......./exec
-const GOOGLE_SCRIPT_URL = "请把你的_Google_Web_App_URL_粘贴在这里";
+// ✅ 这是你刚才提供的真实 Google Apps Script 链接
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzacAiR6Mx0f2SooDBOOl4Omorz4_t2scgPA_97mIpyg11X_G7whuyvtXFwuVNI0sUq/exec";
 
 /**
  * 发送便便日记到 Google Sheets
@@ -25,17 +24,17 @@ export const submitGuestbookEntry = async (data) => {
 
   try {
     // 3. 发起请求
-    // 使用 fetch 发送 POST 请求
     const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: "POST",
-      // Google Apps Script 特殊要求：用 text/plain 避免复杂的跨域预检(OPTIONS)请求
+      // 关键设置：使用 text/plain 避免 CORS 预检请求报错
       headers: {
         "Content-Type": "text/plain;charset=utf-8",
       },
       body: JSON.stringify(payload),
     });
 
-    // Google 返回的是重定向或者是 JSON，我们需要解析它
+    // 4. 解析结果
+    // Google Apps Script 通常会返回 JSON
     const result = await response.json();
     return result;
 
