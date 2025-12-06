@@ -4,8 +4,9 @@ import { Button } from './components/Button';
 import { PoopShape, Mood, PoopLog } from './types';
 import { MOOD_DATA, POOP_SHAPES_DATA } from './constants';
 import { Trash2, Heart } from 'lucide-react';
-// ✨ 引入刚才创建的 API 函数
-import { submitGuestbookEntry } from './api/guestbook';
+
+// 👇👇👇 这里就是您需要配置 URL 的地方！ 👇👇👇
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzmwiMJK51yno68aeBpSIQBPTY50Bmkl3PEOX1ZoMdpTYjfHoiT9lrv68FthIm2rbJi/exec';
 
 const App: React.FC = () => {
   const [logs, setLogs] = useState<PoopLog[]>([]);
@@ -36,7 +37,6 @@ const App: React.FC = () => {
     setIsLoading(true);
     
     // 1. 构建本地保存对象 (Local UI State)
-    // 用于立刻更新 UI 和本地备份
     const newLog: PoopLog = {
       id: Date.now().toString(),
       timestamp: Date.now(),
@@ -46,16 +46,29 @@ const App: React.FC = () => {
     };
 
     try {
-      // 2. 调用 API 发送到 Google Sheets
-      // (具体的 URL 和 fetch 逻辑都在 api/guestbook.js 里)
-      await submitGuestbookEntry({
-        poop_shape: POOP_SHAPES_DATA[currentShape].label,
-        mood: MOOD_DATA[currentMood],
-        memo: note
+      // 2. ✨ 直接在这里调用 Google Sheets API ✨
+      // 我们不再依赖外部文件，直接在这里发送 fetch 请求
+      const response = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        mode: 'cors', // 允许跨域
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8', // 使用 text/plain 避免 Google 的 OPTION 预检问题，这是个常用技巧
+        },
+        body: JSON.stringify({
+          poop_shape: POOP_SHAPES_DATA[currentShape].label,
+          mood: MOOD_DATA[currentMood],
+          memo: note
+        })
       });
 
-      // 3. 成功反馈
-      alert("✨ 记录成功！便便已同步到云端！ ✨");
+      const result = await response.json();
+
+      if (result.result === 'success') {
+         // 3. 成功反馈
+         alert("✨ 记录成功！便便已同步到云端！ ✨");
+      } else {
+         throw new Error(result.message || 'Unknown error');
+      }
 
     } catch (error) {
       console.error("Cloud save failed", error);
@@ -203,13 +216,6 @@ const App: React.FC = () => {
                       <span className="bg-pink-100 px-1 rounded text-xs mr-2 text-pink-600">{MOOD_DATA[log.mood]}</span>
                       {log.note}
                     </div>
-
-                    {/* Keep display of old AI fortunes if they exist in local storage */}
-                    {log.aiFortune && (
-                        <div className="mt-2 p-2 bg-purple-50 rounded text-xs text-purple-800 font-mono border border-purple-100">
-                          {log.aiFortune}
-                        </div>
-                    )}
                   </div>
                 ))
               )}
